@@ -1,0 +1,185 @@
+import cv2
+import time
+from picamera2 import Picamera2
+
+from tflite_support.task import core
+from tflite_support.task import processor
+from tflite_support.task import vision
+import utils
+
+model='efficientdet_lite0.tflite'
+num_threads=3
+
+dispW=500
+dispH=400
+
+picam2=Picamera2()
+picam2.preview_configuration.main.size=(dispW,dispH)
+picam2.preview_configuration.main.format='RGB888'
+picam2.preview_configuration.align()
+picam2.configure("preview")
+picam2.start()
+
+#webCam='/dev/video2'
+#cam=cv2.VideoCapture(webCam)
+#cam.set(cv2.CAP_PROP_FRAME_WIDTH, dispW)
+#cam.set(cv2.CAP_PROP_FRAME_HEIGHT, dispH)
+#cam.set(cv2.CAP_PROP_FPS, 30)
+
+pos=(20,60)
+font=cv2.FONT_HERSHEY_SIMPLEX
+height=1.5
+weight=3
+myColor=(255,0,0)
+
+labelHeight = 1.5
+labelColor = (0,255,0)
+labelWeight = (2)
+
+boxColor = (0,0,255)
+boxWeight =2
+
+fps=0
+
+base_options=core.BaseOptions(file_name=model,use_coral=False, num_threads=num_threads)
+detection_options=processor.DetectionOptions(max_results=3, score_threshold=.4)
+options=vision.ObjectDetectorOptions(base_options=base_options,detection_options=detection_options)
+detector=vision.ObjectDetector.create_from_options(options)
+tStart=time.time()
+while True:
+    #ret, im = cam.read()
+    im=picam2.capture_array()
+    im=cv2.flip(im,-1)
+    imRGB=cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
+    imTensor=vision.TensorImage.create_from_array(imRGB)
+    myDetects = detector.detect(imTensor)
+    #print(myDetects)
+    for myDetect in myDetects.detections:
+        #print(myDetect)
+        #print()
+        #print(myDetect.bounding_box.origin_x,myDetect.bounding_box.origin_y)
+        UL=(myDetect.bounding_box.origin_x,myDetect.bounding_box.origin_y )
+        LR =(myDetect.bounding_box.origin_x+myDetect.bounding_box.width,myDetect.bounding_box.origin_y+myDetect.bounding_box.height )
+        objName = myDetect.categories[0].category_name
+        if objName =='person':
+            im = cv2.rectangle(im,UL,LR,boxColor,boxWeight)
+            cv2.putText(im,objName,UL,font,labelHeight,labelColor,labelWeight)
+
+        elif objName =='dog':
+            im = cv2.rectangle(im,UL,LR,boxColor,boxWeight)
+            cv2.putText(im,objName,UL,font,labelHeight,labelColor,labelWeight)
+
+
+        #print(UL,LR)
+        #print()
+    #image=utils.visualize(im, myDetects)
+    cv2.putText(im,str(int(fps))+' FPS',pos,font,height,myColor,weight)
+    cv2.imshow('Camera',im)
+    if cv2.waitKey(1)==ord('q'):
+        break
+    tEnd=time.time()
+    loopTime=tEnd-tStart
+    fps= .9*fps +.1*1/loopTime
+    tStart=time.time()
+cv2.destroyAllWindows()
+
+**************************
+
+# Define the coordinates of the four lines
+line1 = (20, 30), (60, 70)
+line2 = (80, 90), (120, 110)
+line3 = (140, 160), (180, 200)
+line4 = (220, 240), (260, 280)
+
+# Create a list of tuples representing the coordinates of the four lines
+centerpoint = [line1[0], line1[1], line2[0], line2[1], line3[0], line3[1], line4[0], line4[1]]
+
+# Define the coordinates of the point to check
+xp = 150
+yp = 180
+
+# Call the check_point_position() function
+result = check_point_position(xp, yp, centerpoint)
+
+# Print the result
+print(result)
+************************************
+def check_point_position(xp, yp, centerpoint):
+    """
+    Function to check if a given point is inside or outside the area defined by four lines.
+
+    Args:
+        xp (float): x-coordinate of the point to check.
+        yp (float): y-coordinate of the point to check.
+        centerpoint (list): List of tuples representing the coordinates of the four lines.
+
+    Returns:
+        str: Returns 'Inside' if the point is inside the area, 'Outside' otherwise.
+    """
+
+    # Extract the coordinates of the lines
+    line1 = centerpoint[0], centerpoint[1]
+    line2 = centerpoint[2], centerpoint[3]
+    line3 = centerpoint[4], centerpoint[5]
+    line4 = centerpoint[6], centerpoint[7]
+
+    # Calculate the cross product for each line segment
+    cross_product1 = (yp - line1[0][1]) * (line1[1][0] - line1[0][0]) - (xp - line1[0][0]) * (line1[1][1] - line1[0][1])
+    cross_product2 = (yp - line2[0][1]) * (line2[1][0] - line2[0][0]) - (xp - line2[0][0]) * (line2[1][1] - line2[0][1])
+    cross_product3 = (yp - line3[0][1]) * (line3[1][0] - line3[0][0]) - (xp - line3[0][0]) * (line3[1][1] - line3[0][1])
+    cross_product4 = (yp - line4[0][1]) * (line4[1][0] - line4[0][0]) - (xp - line4[0][0]) * (line4[1][1] - line4[0][1])
+
+    # Check if the point is on the same side of all the lines
+    if cross_product1 < 0 and cross_product2 < 0 and cross_product3 < 0 and cross_product4 < 0:
+        return 'Inside'
+    else:
+        return 'Outside'
+
+*********************************************
+this worked !!!
+
+def check_point_position(xp, yp, lines):
+    """
+    Function to check if a point is inside or outside the area limited by four lines.
+
+    Args:
+        xp (float): x-coordinate of the point to check.
+        yp (float): y-coordinate of the point to check.
+        lines (list): List of tuples representing the coordinates of the four lines.
+
+    Returns:
+        str: Returns 'Inside' if the point is inside the area, 'Outside' otherwise.
+    """
+
+    # Iterate through the lines
+    for line in lines:
+        x1, y1 = line[0]
+        x2, y2 = line[1]
+
+        # Calculate the cross product
+        cross_product = (yp - y1) * (x2 - x1) - (xp - x1) * (y2 - y1)
+
+        # Check if the point is on the same side of all the lines
+        if cross_product < 0:
+            return 'Outside'
+
+    return 'Inside'
+
+# Prompt the user to input the coordinates of the lines
+lines = []
+for i in range(4):
+    x1 = float(input(f"Enter x-coordinate of point {i+1} of line: "))
+    y1 = float(input(f"Enter y-coordinate of point {i+1} of line: "))
+    x2 = float(input(f"Enter x-coordinate of point {i+2} of line: "))
+    y2 = float(input(f"Enter y-coordinate of point {i+2} of line: "))
+    lines.append([(x1, y1), (x2, y2)])
+
+# Prompt the user to input the point coordinates
+xp = float(input("Enter x-coordinate of the point: "))
+yp = float(input("Enter y-coordinate of the point: "))
+
+# Check the position of the point
+position = check_point_position(xp, yp, lines)
+
+# Print the result
+print(f"The point ({xp}, {yp}) is {position} the area.")
